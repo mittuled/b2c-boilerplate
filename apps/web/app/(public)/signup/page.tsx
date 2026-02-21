@@ -1,16 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useAuth } from '@/lib/auth-provider';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-provider';
+import { useState } from 'react';
 
 const PASSWORD_REQUIREMENTS = [
   { label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
   { label: 'One uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
   { label: 'One lowercase letter', test: (p: string) => /[a-z]/.test(p) },
   { label: 'One number', test: (p: string) => /\d/.test(p) },
-  { label: 'One special character', test: (p: string) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p) },
+  {
+    label: 'One special character',
+    test: (p: string) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p),
+  },
 ];
 
 export default function SignupPage() {
@@ -21,7 +24,7 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const passwordStrength = PASSWORD_REQUIREMENTS.filter(r => r.test(password)).length;
+  const passwordStrength = PASSWORD_REQUIREMENTS.filter((r) => r.test(password)).length;
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -29,21 +32,30 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // Validate via Edge Function first
-      const validateRes = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/validate-signup`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        }
-      );
+      // Validate via Edge Function first (non-blocking: proceed with signup if validation service is down)
+      try {
+        const validateRes = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/validate-signup`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+            },
+            body: JSON.stringify({ email, password }),
+          },
+        );
 
-      const validation = await validateRes.json();
-      if (!validation.data?.valid) {
-        setError(validation.errors?.[0]?.message ?? 'Validation failed');
-        setLoading(false);
-        return;
+        if (validateRes.ok || validateRes.status === 422) {
+          const validation = await validateRes.json();
+          if (!validation.data?.valid) {
+            setError(validation.errors?.[0]?.message ?? 'Validation failed');
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // Edge Function unavailable — fall through to signup with client-side validation only
       }
 
       const { error: signUpError } = await supabase.auth.signUp({ email, password });
@@ -52,8 +64,9 @@ export default function SignupPage() {
       } else {
         router.push('/verify-email');
       }
-    } catch {
-      setError('An unexpected error occurred');
+    } catch (err) {
+      console.error('Signup error:', err);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -76,9 +89,9 @@ export default function SignupPage() {
 
         <form onSubmit={handleSignup} className="space-y-6" noValidate>
           {error && (
-            <div role="alert" className="rounded-md bg-red-50 p-4 text-sm text-red-700">
+            <p className="rounded-md bg-red-50 p-4 text-sm text-red-700" aria-live="assertive">
               {error}
-            </div>
+            </p>
           )}
 
           <div>
@@ -133,7 +146,11 @@ export default function SignupPage() {
                       key={level}
                       className={`h-1 flex-1 rounded ${
                         level <= passwordStrength
-                          ? passwordStrength <= 2 ? 'bg-red-400' : passwordStrength <= 4 ? 'bg-yellow-400' : 'bg-green-400'
+                          ? passwordStrength <= 2
+                            ? 'bg-red-400'
+                            : passwordStrength <= 4
+                              ? 'bg-yellow-400'
+                              : 'bg-green-400'
                           : 'bg-gray-200'
                       }`}
                     />
