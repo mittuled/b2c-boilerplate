@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
-import { ThemeProvider, themeInitScript } from "@/lib/theme-provider";
-import "./globals.css";
+import { AuthProvider } from '@/lib/auth-provider';
+import { ThemeProvider, themeInitScript } from '@/lib/theme-provider';
+import type { Metadata } from 'next';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "B2C App",
-  description: "B2C application boilerplate",
+  title: 'B2C App',
+  description: 'B2C application boilerplate',
 };
 
 export default function RootLayout({
@@ -15,11 +16,13 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Inline script to prevent flash of wrong theme before React hydrates */}
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: Inline theme script prevents flash of wrong theme before hydration */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
