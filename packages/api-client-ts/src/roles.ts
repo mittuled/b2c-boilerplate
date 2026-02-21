@@ -7,7 +7,11 @@ export function createRoleHelpers(client: SupabaseClient) {
     },
 
     async getUserRole(userId: string) {
-      return client.from('v_user_with_role').select('role_name, hierarchy_level').eq('id', userId).single();
+      return client
+        .from('v_user_with_role')
+        .select('role_name, hierarchy_level')
+        .eq('id', userId)
+        .single();
     },
 
     async assignRole(userId: string, roleId: string) {

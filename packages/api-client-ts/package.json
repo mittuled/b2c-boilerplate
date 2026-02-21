@@ -17,12 +17,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.0.0",
-    "@supabase/ssr": "^0.0.0"
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/postgrest-js": "^2.0.0",
+    "@supabase/storage-js": "^2.0.0"
   },
   "devDependencies": {
     "typescript": "^5.0.0"
   },
-  "files": [
-    "dist"
-  ]
+  "files": ["dist"]
 }

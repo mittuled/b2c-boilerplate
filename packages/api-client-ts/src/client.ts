@@ -1,6 +1,6 @@
 import { createBrowserClient as createSupabaseBrowserClient } from '@supabase/ssr';
 import { createServerClient as createSupabaseServerClient } from '@supabase/ssr';
-import type { Database } from '../../../contracts/generated/typescript/database.js';
+import type { Database } from './database.js';
 
 export type { Database };
 

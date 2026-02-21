@@ -7,7 +7,10 @@ interface Session {
   is_current: boolean;
 }
 
-export function createSessionHelpers(supabaseUrl: string, getAccessToken: () => Promise<string | null>) {
+export function createSessionHelpers(
+  supabaseUrl: string,
+  getAccessToken: () => Promise<string | null>,
+) {
   async function fetchWithAuth(path: string, options: RequestInit = {}) {
     const token = await getAccessToken();
     return fetch(`${supabaseUrl}/functions/v1/manage-sessions${path}`, {
@@ -32,8 +35,8 @@ export function createSessionHelpers(supabaseUrl: string, getAccessToken: () => 
     },
 
     async revokeAllOtherSessions(sessions: Session[]): Promise<void> {
-      const others = sessions.filter(s => !s.is_current);
-      await Promise.all(others.map(s => this.revokeSession(s.session_id)));
+      const others = sessions.filter((s) => !s.is_current);
+      await Promise.all(others.map((s) => this.revokeSession(s.session_id)));
     },
 
     async forceLogout(userId: string): Promise<void> {

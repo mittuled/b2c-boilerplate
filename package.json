@@ -26,17 +26,23 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.9.0",
     "husky": "^9.0.0",
     "lint-staged": "^15.0.0",
     "plop": "^4.0.0",
     "turbo": "^2.0.0"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
-      "biome check --write"
-    ],
-    "*.{json,md}": [
-      "biome format --write"
+    "*.{ts,tsx}": ["biome check --write"],
+    "*.{json,md}": ["biome format --write"]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "@bundled-es-modules/glob",
+      "esbuild",
+      "sharp",
+      "style-dictionary"
     ]
   }
 }

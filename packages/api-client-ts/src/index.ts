@@ -1,9 +1,9 @@
 export {
   createBrowserClient,
   createServerClient,
-} from "./client.js";
+} from './client.js';
 
-export type { Database } from "./client.js";
+export type { Database } from './client.js';
 
 export { createAuthHelpers, type AuthHelpers } from './auth.js';
 
