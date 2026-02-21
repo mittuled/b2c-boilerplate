@@ -1,0 +1,35 @@
+{{#if useClient}}
+'use client';
+
+{{/if}}
+import type { Metadata } from 'next';
+
+/* -------------------------------------------------------------------------- */
+/*  Metadata                                                                   */
+/* -------------------------------------------------------------------------- */
+
+export const metadata: Metadata = {
+  title: '{{titleCase name}}',
+  description: 'TODO: Add page description for {{titleCase name}}.',
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Page                                                                       */
+/* -------------------------------------------------------------------------- */
+
+{{#if useClient}}
+export default function {{pascalCase name}}Page() {
+{{else}}
+export default async function {{pascalCase name}}Page() {
+{{/if}}
+  return (
+    <main className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold">
+        {{titleCase name}}
+      </h1>
+      <p className="mt-2 text-muted-foreground">
+        TODO: Build the {{titleCase name}} page.
+      </p>
+    </main>
+  );
+}

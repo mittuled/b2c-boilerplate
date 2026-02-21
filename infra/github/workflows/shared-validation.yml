@@ -1,0 +1,102 @@
+name: Shared Validation
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec biome check .
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --audit-level=high
+        continue-on-error: true
+
+  validate-workflows:
+    name: Validate CI Workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate YAML syntax
+        run: |
+          EXIT_CODE=0
+          for f in infra/github/workflows/*.yml; do
+            if python3 -c "import yaml; yaml.safe_load(open('$f'))" 2>/dev/null; then
+              echo "PASS: $f"
+            else
+              echo "FAIL: $f - invalid YAML"
+              EXIT_CODE=1
+            fi
+          done
+          exit $EXIT_CODE
+
+  validate-edge-functions:
+    name: Validate Edge Functions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Edge Function structure
+        run: |
+          EXIT_CODE=0
+          FUNCTIONS_DIR="supabase/functions"
+
+          for func_dir in "${FUNCTIONS_DIR}"/*/; do
+            func_name=$(basename "$func_dir")
+            [ "$func_name" = "_shared" ] && continue
+
+            if [ ! -f "${func_dir}index.ts" ]; then
+              echo "FAIL: ${func_name} missing index.ts"
+              EXIT_CODE=1
+            else
+              echo "PASS: ${func_name}/index.ts exists"
+            fi
+          done
+
+          # Verify shared modules
+          for shared_file in logger.ts pagination.ts; do
+            if [ -f "${FUNCTIONS_DIR}/_shared/${shared_file}" ]; then
+              echo "PASS: _shared/${shared_file} exists"
+            else
+              echo "WARN: _shared/${shared_file} not found"
+            fi
+          done
+
+          exit $EXIT_CODE

@@ -1,0 +1,15 @@
+{
+  "spacing": {
+    "xs": { "$value": "{size.spacing.xs}", "$type": "dimension" },
+    "sm": { "$value": "{size.spacing.sm}", "$type": "dimension" },
+    "md": { "$value": "{size.spacing.md}", "$type": "dimension" },
+    "lg": { "$value": "{size.spacing.lg}", "$type": "dimension" },
+    "xl": { "$value": "{size.spacing.xl}", "$type": "dimension" }
+  },
+  "radius": {
+    "sm": { "$value": "{size.radius.sm}", "$type": "dimension" },
+    "md": { "$value": "{size.radius.md}", "$type": "dimension" },
+    "lg": { "$value": "{size.radius.lg}", "$type": "dimension" },
+    "full": { "$value": "{size.radius.full}", "$type": "dimension" }
+  }
+}

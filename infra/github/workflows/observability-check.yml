@@ -1,0 +1,108 @@
+name: Observability Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  structured-logging:
+    name: Verify Structured Logging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Edge Functions use shared logger
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          FUNCTIONS_DIR="supabase/functions"
+          SHARED_DIR="${FUNCTIONS_DIR}/_shared"
+          EXIT_CODE=0
+
+          echo "============================================"
+          echo "  Observability Check: Structured Logging"
+          echo "============================================"
+          echo ""
+
+          # Verify shared logger exists
+          if [ ! -f "${SHARED_DIR}/logger.ts" ]; then
+            echo "FAIL: ${SHARED_DIR}/logger.ts does not exist"
+            echo "  All Edge Functions must use the shared logger module."
+            exit 1
+          fi
+          echo "PASS: Shared logger module exists at ${SHARED_DIR}/logger.ts"
+          echo ""
+
+          # Iterate over each Edge Function directory (skip _shared)
+          for func_dir in "${FUNCTIONS_DIR}"/*/; do
+            func_name=$(basename "$func_dir")
+
+            # Skip _shared directory
+            if [ "$func_name" = "_shared" ]; then
+              continue
+            fi
+
+            index_file="${func_dir}index.ts"
+
+            if [ ! -f "$index_file" ]; then
+              echo "SKIP: ${func_name} - no index.ts found"
+              continue
+            fi
+
+            echo "Checking: ${func_name}"
+
+            # Check 1: Must import from _shared/logger
+            if ! grep -q 'from.*["\x27]\.\./_shared/logger' "$index_file"; then
+              echo "  FAIL: Does not import from _shared/logger.ts"
+              echo "        Add: import { createLogger, getCorrelationId } from \"../_shared/logger.ts\";"
+              EXIT_CODE=1
+            else
+              echo "  PASS: Imports shared logger"
+            fi
+
+            # Check 2: Must call createLogger
+            if ! grep -q 'createLogger' "$index_file"; then
+              echo "  FAIL: Does not call createLogger()"
+              echo "        Add: const logger = createLogger(\"${func_name}\");"
+              EXIT_CODE=1
+            else
+              echo "  PASS: Uses createLogger()"
+            fi
+
+            # Check 3: Warn about raw console.log usage (should use logger instead)
+            RAW_CONSOLE_COUNT=$(grep -cE 'console\.(log|info|warn|error|debug)\(' "$index_file" || true)
+            LOGGER_CONSOLE_COUNT=$(grep -cE '(console\.(info|warn|error|debug)\(serialized)' "${SHARED_DIR}/logger.ts" 2>/dev/null || true)
+
+            if [ "$RAW_CONSOLE_COUNT" -gt 0 ]; then
+              # Check if console calls are just the ones from inline JSON.stringify patterns
+              # that should have been migrated to the shared logger
+              RAW_LOG_LINES=$(grep -nE 'console\.log\(' "$index_file" || true)
+              if [ -n "$RAW_LOG_LINES" ]; then
+                echo "  WARN: Found ${RAW_CONSOLE_COUNT} raw console call(s) - prefer using logger.info/warn/error"
+                echo "        Lines: $(echo "$RAW_LOG_LINES" | head -3)"
+              fi
+            else
+              echo "  PASS: No raw console.log calls"
+            fi
+
+            echo ""
+          done
+
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "============================================"
+            echo "  FAILED: Some Edge Functions lack structured logging"
+            echo "  See above for details and remediation steps."
+            echo "============================================"
+            exit 1
+          fi
+
+          echo "============================================"
+          echo "  PASSED: All Edge Functions use structured logging"
+          echo "============================================"

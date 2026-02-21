@@ -1,0 +1,15 @@
+{
+  "text": {
+    "body": {
+      "size": { "$value": "{size.font.base}", "$type": "dimension" },
+      "lineHeight": { "$value": "1.5", "$type": "number" }
+    },
+    "heading": {
+      "size": { "$value": "{size.font.3xl}", "$type": "dimension" },
+      "lineHeight": { "$value": "1.2", "$type": "number" }
+    },
+    "small": {
+      "size": { "$value": "{size.font.sm}", "$type": "dimension" }
+    }
+  }
+}

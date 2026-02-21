@@ -1,0 +1,114 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+/* -------------------------------------------------------------------------- */
+/*  CORS headers                                                               */
+/* -------------------------------------------------------------------------- */
+
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "{{method}}, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-correlation-id, content-type",
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Helpers                                                                     */
+/* -------------------------------------------------------------------------- */
+
+/** Build a JSON envelope response. */
+function envelope(
+  data: unknown,
+  errors: { code: string; message: string }[],
+  correlationId: string,
+  status = 200,
+) {
+  return new Response(
+    JSON.stringify({
+      data,
+      errors,
+      meta: { timestamp: new Date().toISOString(), correlationId },
+    }),
+    {
+      status,
+      headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+    },
+  );
+}
+
+/** Structured JSON log line. */
+function log(
+  level: "INFO" | "WARN" | "ERROR",
+  correlationId: string,
+  message: string,
+  extra: Record<string, unknown> = {},
+) {
+  console.log(JSON.stringify({ level, correlationId, message, ...extra }));
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Handler                                                                    */
+/* -------------------------------------------------------------------------- */
+
+Deno.serve(async (req: Request) => {
+  const correlationId =
+    req.headers.get("x-correlation-id") ?? crypto.randomUUID();
+
+  // --- Preflight ---------------------------------------------------------------
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
+  // --- Method guard ------------------------------------------------------------
+  if (req.method !== "{{method}}") {
+    return envelope(
+      null,
+      [{ code: "METHOD_NOT_ALLOWED", message: "{{method}} only" }],
+      correlationId,
+      405,
+    );
+  }
+
+  // --- Auth check --------------------------------------------------------------
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return envelope(
+      null,
+      [{ code: "UNAUTHORIZED", message: "Missing authorization" }],
+      correlationId,
+      401,
+    );
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return envelope(
+      null,
+      [{ code: "UNAUTHORIZED", message: "Invalid token" }],
+      correlationId,
+      401,
+    );
+  }
+
+  log("INFO", correlationId, "{{kebabCase name}} invoked", {
+    user_id: user.id,
+  });
+
+  // --- Business logic ----------------------------------------------------------
+
+  // TODO: Implement {{kebabCase name}} logic here.
+  const result = { ok: true };
+
+  // --- Response ----------------------------------------------------------------
+  return envelope(result, [], correlationId, 200);
+});
