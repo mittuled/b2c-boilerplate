@@ -1,0 +1,12 @@
+{
+  "name": "@b2c/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node config/web.config.js",
+    "clean": "rm -rf generated"
+  },
+  "devDependencies": {
+    "style-dictionary": "^4.0.0"
+  }
+}

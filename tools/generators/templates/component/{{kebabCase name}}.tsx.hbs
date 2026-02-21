@@ -1,0 +1,41 @@
+{{#if useClient}}
+'use client';
+
+{{/if}}
+import type { ComponentPropsWithoutRef } from 'react';
+
+/* -------------------------------------------------------------------------- */
+/*  Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
+export interface {{pascalCase name}}Props extends ComponentPropsWithoutRef<'div'> {
+  /** Accessible label for the component. */
+  label?: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Component                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * {{pascalCase name}}
+ *
+ * TODO: Add component description.
+ */
+export function {{pascalCase name}}({
+  label,
+  className,
+  children,
+  ...rest
+}: {{pascalCase name}}Props) {
+  return (
+    <div
+      role="region"
+      aria-label={label ?? '{{pascalCase name}}'}
+      className={className}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}

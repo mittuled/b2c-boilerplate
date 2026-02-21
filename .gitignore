@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# Swift
+.build/
+DerivedData/
+*.swiftpm/
+# Packages/ — removed: conflicts with monorepo packages/ workspace on macOS
+xcuserdata/
+*.xcworkspace/xcshareddata/swiftpm/
+
+# Kotlin/Android
+*.class
+*.jar
+.gradle/
+
+# C#/.NET
+bin/
+obj/
+*.user
+*.suo
+# packages/ — removed: conflicts with monorepo packages/ workspace
+
+# Tokens generated output (committed but gitignored during generation)
+# tokens/generated/ — intentionally committed per plan.md
+
+# Contracts generated output (committed but gitignored during generation)
+# contracts/generated/ — intentionally committed per plan.md
+
+# Test results
+test-results/
+playwright-report/

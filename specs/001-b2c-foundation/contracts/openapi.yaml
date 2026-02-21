@@ -1,0 +1,1106 @@
+openapi: 3.1.0
+info:
+  title: B2C Boilerplate API — Phase 1: Foundation
+  version: 1.0.0
+  description: >
+    RESTful API for the B2C multi-platform SaaS boilerplate.
+    Phase 1 covers authentication, session management, user profiles,
+    RBAC, design tokens, and system health.
+  contact:
+    name: B2C Boilerplate
+  license:
+    name: MIT
+
+servers:
+  - url: http://127.0.0.1:54321/rest/v1
+    description: Local Supabase (PostgREST)
+  - url: http://127.0.0.1:54321/functions/v1
+    description: Local Supabase (Edge Functions)
+  - url: https://{project_ref}.supabase.co/rest/v1
+    description: Production Supabase (PostgREST)
+    variables:
+      project_ref:
+        description: Supabase project reference ID
+
+tags:
+  - name: Auth
+    description: Authentication and registration (FR-001 through FR-006)
+  - name: Sessions
+    description: Session management (FR-007, FR-008)
+  - name: Profiles
+    description: User profile and privacy (FR-009, FR-010)
+  - name: RBAC
+    description: Role-based access control (FR-011, FR-012)
+  - name: Tokens
+    description: Design token system (FR-024, FR-025)
+  - name: System
+    description: Health checks and API documentation (FR-016)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase access token (15-minute TTL)
+    apiKey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Supabase anon/service key
+
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        data:
+          description: Response payload
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+            cursor:
+              type: string
+              nullable: true
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: "Display name is required"
+        field:
+          type: string
+          nullable: true
+          example: display_name
+        details:
+          type: object
+          nullable: true
+
+    Profile:
+      type: object
+      required: [id, display_name, timezone, preferred_language, account_status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+          maxLength: 100
+          example: Jane Doe
+        avatar_url:
+          type: string
+          nullable: true
+          example: /storage/v1/object/public/avatars/user123/avatar.jpg
+        bio:
+          type: string
+          nullable: true
+          maxLength: 500
+        phone:
+          type: string
+          nullable: true
+          pattern: '^\+[1-9]\d{1,14}$'
+          example: "+14155551234"
+        timezone:
+          type: string
+          example: America/New_York
+        preferred_language:
+          type: string
+          example: en
+        account_status:
+          type: string
+          enum: [unverified, active, suspended, deactivated]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProfileUpdate:
+      type: object
+      properties:
+        display_name:
+          type: string
+          maxLength: 100
+        bio:
+          type: string
+          maxLength: 500
+        timezone:
+          type: string
+        preferred_language:
+          type: string
+
+    ConsentEntry:
+      type: object
+      required: [consent_type, value, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        consent_type:
+          type: string
+          enum: [marketing_email, marketing_push, cookie_analytics, cookie_advertising]
+        value:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    ConsentUpdate:
+      type: object
+      required: [consent_type, value]
+      properties:
+        consent_type:
+          type: string
+          enum: [marketing_email, marketing_push, cookie_analytics, cookie_advertising]
+        value:
+          type: boolean
+
+    Session:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        user_agent:
+          type: string
+          nullable: true
+        ip:
+          type: string
+          nullable: true
+        is_current:
+          type: boolean
+
+    RoleDefinition:
+      type: object
+      required: [id, name, description, hierarchy_level]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          enum: [super_admin, admin, moderator, end_user]
+        description:
+          type: string
+        hierarchy_level:
+          type: integer
+        permissions:
+          type: array
+          items:
+            type: string
+          description: Permission keys assigned to this role
+
+    UserRole:
+      type: object
+      required: [user_id, role_id, role_name]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role_id:
+          type: string
+          format: uuid
+        role_name:
+          type: string
+        assigned_by:
+          type: string
+          format: uuid
+          nullable: true
+        assigned_at:
+          type: string
+          format: date-time
+
+    RoleAssignment:
+      type: object
+      required: [user_id, role_name]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        role_name:
+          type: string
+          enum: [super_admin, admin, moderator, end_user]
+
+    DesignToken:
+      type: object
+      required: [id, key, category, light_value, dark_value]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+          example: color.primary
+        category:
+          type: string
+          enum: [color, typography, spacing, radius, shadow]
+        light_value:
+          type: string
+          example: "#2563eb"
+        dark_value:
+          type: string
+          example: "#60a5fa"
+        description:
+          type: string
+          nullable: true
+
+    HealthCheck:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+          example: 1.0.0
+        timestamp:
+          type: string
+          format: date-time
+        dependencies:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [up, down]
+            auth:
+              type: string
+              enum: [up, down]
+            storage:
+              type: string
+              enum: [up, down]
+            realtime:
+              type: string
+              enum: [up, down]
+
+    # Auth-related schemas (Supabase Auth API responses)
+    SignUpRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          description: "Min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special character"
+        options:
+          type: object
+          properties:
+            data:
+              type: object
+              properties:
+                display_name:
+                  type: string
+            captchaToken:
+              type: string
+
+    SignInRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        options:
+          type: object
+          properties:
+            captchaToken:
+              type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          example: 900
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+            role:
+              type: string
+            email_confirmed_at:
+              type: string
+              format: date-time
+              nullable: true
+
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        captchaToken:
+          type: string
+
+    AvatarUploadResponse:
+      type: object
+      properties:
+        path:
+          type: string
+          description: Storage path to the uploaded avatar
+        public_url:
+          type: string
+          description: Public URL for the avatar
+
+  responses:
+    UnauthorizedError:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            meta: {}
+            errors:
+              - code: UNAUTHORIZED
+                message: "Missing or invalid access token"
+
+    ForbiddenError:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            meta: {}
+            errors:
+              - code: FORBIDDEN
+                message: "You do not have permission to perform this action"
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            meta: {}
+            errors:
+              - code: VALIDATION_ERROR
+                message: "Display name is required"
+                field: display_name
+
+    RateLimitError:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            meta: {}
+            errors:
+              - code: RATE_LIMITED
+                message: "Too many requests. Try again later."
+
+paths:
+  # ── Auth Endpoints (FR-001 through FR-006) ──────────────────────
+
+  /auth/v1/signup:
+    post:
+      tags: [Auth]
+      summary: Register with email and password
+      description: >
+        Creates a new account. Validates password strength (min 8 chars, 1 uppercase,
+        1 lowercase, 1 digit, 1 special char). Blocks disposable email domains.
+        Sends verification email within 60 seconds. Requires CAPTCHA token when
+        risk score is elevated. (FR-001, FR-005, FR-006)
+      operationId: signUp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+      responses:
+        '200':
+          description: Account created, verification email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/v1/token:
+    post:
+      tags: [Auth]
+      summary: Sign in with email and password
+      description: >
+        Authenticates user and returns access + refresh tokens. Access token TTL: 15 minutes.
+        Unverified accounts are blocked and redirected to verification screen.
+        CAPTCHA required when risk score is elevated. (FR-001, FR-007)
+      operationId: signIn
+      security: []
+      parameters:
+        - name: grant_type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [password, refresh_token]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials or unverified account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/v1/recover:
+    post:
+      tags: [Auth]
+      summary: Request password reset
+      description: >
+        Sends a password reset email. Returns generic success response regardless
+        of whether the email exists (prevents account enumeration). (FR-004)
+      operationId: requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Reset email sent (if account exists)
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/v1/user:
+    put:
+      tags: [Auth]
+      summary: Update user credentials (password, email)
+      description: >
+        Updates the authenticated user's password or email. Password change
+        invalidates all other sessions. Email change requires re-verification. (FR-004)
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+                  minLength: 8
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/v1/logout:
+    post:
+      tags: [Auth]
+      summary: Sign out
+      description: Invalidates the current session or all sessions.
+      operationId: signOut
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [local, others, global]
+            default: local
+      responses:
+        '204':
+          description: Signed out
+
+  # ── OAuth Endpoints (FR-002) ────────────────────────────────────
+
+  /auth/v1/authorize:
+    get:
+      tags: [Auth]
+      summary: Initiate OAuth sign-in
+      description: >
+        Redirects to the OAuth provider (Google, Apple). On success, redirects back
+        with auth code. Auto-creates account if none exists. (FR-002)
+      operationId: oauthAuthorize
+      security: []
+      parameters:
+        - name: provider
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [google, apple]
+        - name: redirect_to
+          in: query
+          schema:
+            type: string
+            format: uri
+      responses:
+        '302':
+          description: Redirect to OAuth provider
+
+  # ── MFA Endpoints (FR-003) ─────────────────────────────────────
+
+  /auth/v1/factors:
+    post:
+      tags: [Auth]
+      summary: Enroll MFA factor (TOTP)
+      description: >
+        Initiates TOTP MFA enrollment. Returns QR code URI and recovery codes. (FR-003)
+      operationId: enrollMfa
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [factor_type]
+              properties:
+                factor_type:
+                  type: string
+                  enum: [totp]
+                friendly_name:
+                  type: string
+      responses:
+        '200':
+          description: MFA factor created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  type:
+                    type: string
+                  totp:
+                    type: object
+                    properties:
+                      qr_code:
+                        type: string
+                        description: Data URI for QR code
+                      uri:
+                        type: string
+                        description: TOTP URI for manual entry
+                  recovery_codes:
+                    type: array
+                    items:
+                      type: string
+                    description: One-time use recovery codes (10 codes)
+
+  /auth/v1/factors/{factor_id}/challenge:
+    post:
+      tags: [Auth]
+      summary: Create MFA challenge
+      operationId: challengeMfa
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: factor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Challenge created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  expires_at:
+                    type: string
+                    format: date-time
+
+  /auth/v1/factors/{factor_id}/verify:
+    post:
+      tags: [Auth]
+      summary: Verify MFA challenge
+      operationId: verifyMfa
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: factor_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challenge_id, code]
+              properties:
+                challenge_id:
+                  type: string
+                  format: uuid
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+      responses:
+        '200':
+          description: MFA verified, AAL upgraded to aal2
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  # ── Session Endpoints (FR-007, FR-008) ──────────────────────────
+
+  /functions/v1/manage-sessions:
+    get:
+      tags: [Sessions]
+      summary: List active sessions
+      description: >
+        Returns all active sessions for the authenticated user with device info,
+        IP, and timestamps. Current session is flagged. (FR-008)
+      operationId: listSessions
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Session list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    delete:
+      tags: [Sessions]
+      summary: Revoke a specific session
+      description: >
+        Revokes a specific session by ID. Admin can revoke any user's session. (FR-008)
+      operationId: revokeSession
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Session revoked
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  # ── Profile Endpoints (FR-009, FR-010) ──────────────────────────
+
+  /profiles:
+    get:
+      tags: [Profiles]
+      summary: Get current user's profile
+      description: Returns the authenticated user's profile. (FR-009)
+      operationId: getMyProfile
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*"
+      responses:
+        '200':
+          description: Profile data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    patch:
+      tags: [Profiles]
+      summary: Update current user's profile
+      description: >
+        Updates editable profile fields. Cannot update account_status or
+        suspended fields via this endpoint. (FR-009)
+      operationId: updateMyProfile
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+            description: "eq.<user_id>"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /storage/v1/object/avatars/{user_id}/avatar:
+    post:
+      tags: [Profiles]
+      summary: Upload avatar
+      description: >
+        Upload a JPEG or PNG avatar (max 5 MB). Image is stored and served
+        in multiple sizes via Supabase Storage transforms. (FR-009)
+      operationId: uploadAvatar
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
+          image/png:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Avatar uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvatarUploadResponse'
+        '413':
+          description: File too large (> 5 MB)
+        '415':
+          description: Unsupported media type (not JPEG or PNG)
+
+  /consent_entries:
+    get:
+      tags: [Profiles]
+      summary: Get consent history
+      description: Returns all consent entries for the authenticated user. (FR-010)
+      operationId: getConsentHistory
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: created_at.desc
+      responses:
+        '200':
+          description: Consent history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConsentEntry'
+
+    post:
+      tags: [Profiles]
+      summary: Update consent preference
+      description: >
+        Records a new consent entry. Append-only audit log. The latest entry
+        per consent_type is the current state. (FR-010)
+      operationId: updateConsent
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentUpdate'
+      responses:
+        '201':
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConsentEntry'
+
+  # ── RBAC Endpoints (FR-011, FR-012) ─────────────────────────────
+
+  /role_definitions:
+    get:
+      tags: [RBAC]
+      summary: List all roles
+      description: Returns all role definitions with their permission sets. (FR-011)
+      operationId: listRoles
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*,role_permissions(permissions(key))"
+      responses:
+        '200':
+          description: Role list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleDefinition'
+
+  /user_roles:
+    get:
+      tags: [RBAC]
+      summary: Get user's role
+      description: Returns the role assignment for a user. (FR-011)
+      operationId: getUserRole
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User role
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserRole'
+
+    patch:
+      tags: [RBAC]
+      summary: Assign role to user
+      description: >
+        Assigns a role to a user. Requires `roles.manage` permission.
+        Role change takes effect on next token refresh (up to 15 min). (FR-011)
+      operationId: assignRole
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role_id]
+              properties:
+                role_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Role assigned
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  # ── Design Token Endpoints (FR-024, FR-025) ────────────────────
+
+  /design_tokens:
+    get:
+      tags: [Tokens]
+      summary: List all design tokens
+      description: >
+        Returns all semantic design tokens with light and dark mode values.
+        Used by clients to render themed UI. (FR-024, FR-025)
+      operationId: listDesignTokens
+      security:
+        - bearerAuth: []
+        - apiKey: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [color, typography, spacing, radius, shadow]
+        - name: select
+          in: query
+          schema:
+            type: string
+            default: "*"
+      responses:
+        '200':
+          description: Token list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DesignToken'
+
+  # ── System Endpoints ───────────────────────────────────────────
+
+  /functions/v1/health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: >
+        Returns service health status including dependency checks
+        (database, auth, storage, realtime). Supports shallow (process alive)
+        and deep (dependency check) modes.
+      operationId: healthCheck
+      security: []
+      parameters:
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [shallow, deep]
+            default: shallow
+      responses:
+        '200':
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+        '503':
+          description: Unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'

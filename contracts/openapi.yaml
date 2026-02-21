@@ -1,0 +1,747 @@
+openapi: 3.1.0
+info:
+  title: B2C Boilerplate API
+  version: 1.0.0
+  description: >
+    RESTful API for the B2C multi-platform SaaS boilerplate.
+    Covers authentication, session management, user profiles,
+    RBAC, design tokens, system health, and rate limiting.
+  contact:
+    name: B2C Boilerplate
+  license:
+    name: MIT
+
+servers:
+  - url: http://127.0.0.1:54321
+    description: Local Supabase
+  - url: https://{project_ref}.supabase.co
+    description: Production Supabase
+    variables:
+      project_ref:
+        description: Supabase project reference ID
+
+tags:
+  - name: Auth
+    description: Authentication and registration (FR-001 through FR-006)
+  - name: Sessions
+    description: Session management (FR-007, FR-008)
+  - name: Profiles
+    description: User profile and privacy (FR-009, FR-010)
+  - name: RBAC
+    description: Role-based access control (FR-011, FR-012)
+  - name: Tokens
+    description: Design token system (FR-024, FR-025)
+  - name: System
+    description: Health checks, rate limiting, and API documentation (FR-016)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase access token (15-minute TTL)
+    apiKey:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Supabase anon/service key
+
+  schemas:
+    # ── Envelope ────────────────────────────────────────────────────
+    Envelope:
+      type: object
+      properties:
+        data:
+          description: Response payload (null on error)
+        errors:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/ApiError'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    Meta:
+      type: object
+      required: [timestamp, correlationId]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+          format: uuid
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    PaginationMeta:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+          description: Base64-encoded cursor for the next page
+        hasMore:
+          type: boolean
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: "Display name is required"
+        field:
+          type: string
+          nullable: true
+          example: display_name
+        details:
+          type: object
+          nullable: true
+
+    # ── Pagination ──────────────────────────────────────────────────
+    PaginationParams:
+      type: object
+      properties:
+        cursor:
+          type: string
+          description: Base64-encoded cursor from a previous response
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+
+    # ── Auth ────────────────────────────────────────────────────────
+    SignUpRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+          description: "Min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special character"
+
+    SignUpValidationRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    SignUpValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+
+    SignInRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: bearer
+        expires_in:
+          type: integer
+          example: 900
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+
+    # ── Sessions ────────────────────────────────────────────────────
+    Session:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        user_agent:
+          type: string
+          nullable: true
+        ip:
+          type: string
+          nullable: true
+        is_current:
+          type: boolean
+
+    ForceLogoutRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+
+    # ── Profiles ────────────────────────────────────────────────────
+    Profile:
+      type: object
+      required: [id, display_name, timezone, preferred_language, account_status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+          maxLength: 100
+        avatar_url:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+          maxLength: 500
+        phone:
+          type: string
+          nullable: true
+        timezone:
+          type: string
+        preferred_language:
+          type: string
+        account_status:
+          type: string
+          enum: [unverified, active, suspended, deactivated]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ── Health ──────────────────────────────────────────────────────
+    HealthCheck:
+      type: object
+      required: [status, version, uptime, checks]
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+          example: "1.0.0"
+        uptime:
+          type: integer
+          description: Uptime in seconds
+        checks:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [up, down]
+            auth:
+              type: string
+              enum: [up, down]
+
+    # ── Rate Limiter ────────────────────────────────────────────────
+    RateLimitRequest:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Rate-limit key (user ID, IP, etc.). Falls back to JWT sub or IP.
+        maxRequests:
+          type: integer
+          minimum: 1
+          default: 100
+        windowMs:
+          type: integer
+          minimum: 1000
+          default: 60000
+          description: Window duration in milliseconds
+
+    RateLimitResponse:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+        remaining:
+          type: integer
+        resetAt:
+          type: integer
+          description: Unix timestamp in milliseconds when the window resets
+
+    # ── Export Data ──────────────────────────────────────────────────
+    DataExport:
+      type: object
+      properties:
+        exported_at:
+          type: string
+          format: date-time
+        user:
+          type: object
+          properties:
+            email:
+              type: string
+            display_name:
+              type: string
+            avatar_url:
+              type: string
+              nullable: true
+            bio:
+              type: string
+              nullable: true
+            phone:
+              type: string
+              nullable: true
+            timezone:
+              type: string
+            preferred_language:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+        role:
+          type: string
+          nullable: true
+        consent_history:
+          type: array
+          items:
+            type: object
+            properties:
+              consent_type:
+                type: string
+              value:
+                type: boolean
+              created_at:
+                type: string
+                format: date-time
+
+    # ── Delete Account ──────────────────────────────────────────────
+    DeleteAccountResponse:
+      type: object
+      properties:
+        deleted:
+          type: boolean
+
+  responses:
+    UnauthorizedError:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            errors:
+              - code: UNAUTHORIZED
+                message: "Missing or invalid access token"
+            meta:
+              timestamp: "2025-01-01T00:00:00.000Z"
+              correlationId: "00000000-0000-0000-0000-000000000000"
+
+    ForbiddenError:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            errors:
+              - code: FORBIDDEN
+                message: "You do not have permission to perform this action"
+            meta:
+              timestamp: "2025-01-01T00:00:00.000Z"
+              correlationId: "00000000-0000-0000-0000-000000000000"
+
+    ValidationError:
+      description: Input validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            errors:
+              - code: VALIDATION_ERROR
+                message: "Display name is required"
+                field: display_name
+            meta:
+              timestamp: "2025-01-01T00:00:00.000Z"
+              correlationId: "00000000-0000-0000-0000-000000000000"
+
+    RateLimitError:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+        Retry-After:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            errors:
+              - code: RATE_LIMITED
+                message: "Too many requests. Try again later."
+            meta:
+              timestamp: "2025-01-01T00:00:00.000Z"
+              correlationId: "00000000-0000-0000-0000-000000000000"
+
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Envelope'
+          example:
+            data: null
+            errors:
+              - code: INTERNAL_ERROR
+                message: "An unexpected error occurred"
+            meta:
+              timestamp: "2025-01-01T00:00:00.000Z"
+              correlationId: "00000000-0000-0000-0000-000000000000"
+
+paths:
+  # ── Validate Signup Edge Function ─────────────────────────────────
+  /functions/v1/validate-signup:
+    post:
+      tags: [Auth]
+      summary: Validate signup credentials
+      description: >
+        Pre-validates email and password before account creation.
+        Checks password strength rules and blocks disposable email domains.
+        No authentication required.
+      operationId: validateSignup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpValidationRequest'
+      responses:
+        '200':
+          description: Validation passed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SignUpValidationResponse'
+        '422':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ── Session Management Edge Function ──────────────────────────────
+  /functions/v1/manage-sessions:
+    get:
+      tags: [Sessions]
+      summary: List active sessions (paginated)
+      description: >
+        Returns active sessions for the authenticated user with device info,
+        IP, and timestamps. Current session is flagged. Supports cursor-based
+        pagination via `cursor` and `limit` query parameters.
+      operationId: listSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Base64-encoded cursor from a previous response
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+      responses:
+        '200':
+          description: Paginated session list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Session'
+                      meta:
+                        type: object
+                        properties:
+                          pagination:
+                            $ref: '#/components/schemas/PaginationMeta'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags: [Sessions]
+      summary: Revoke a specific session
+      description: Revokes a specific session by ID.
+      operationId: revokeSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          revoked:
+                            type: boolean
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /functions/v1/manage-sessions/force-logout:
+    post:
+      tags: [Sessions]
+      summary: Admin force logout a user
+      description: >
+        Forces logout of all sessions for a target user.
+        Requires `sessions.manage` permission.
+      operationId: forceLogout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForceLogoutRequest'
+      responses:
+        '200':
+          description: User logged out
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          logged_out:
+                            type: boolean
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ── Delete Account Edge Function ──────────────────────────────────
+  /functions/v1/delete-account:
+    post:
+      tags: [Profiles]
+      summary: Delete user account
+      description: >
+        Soft-deletes the authenticated user's profile, scrubs PII,
+        removes avatar from storage, and revokes all sessions.
+      operationId: deleteAccount
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DeleteAccountResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ── Export Data Edge Function ─────────────────────────────────────
+  /functions/v1/export-data:
+    get:
+      tags: [Profiles]
+      summary: Export user data
+      description: >
+        Returns all personal data for the authenticated user in a
+        machine-readable JSON format (GDPR data portability).
+      operationId: exportData
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Data export
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DataExport'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ── Health Edge Function ──────────────────────────────────────────
+  /functions/v1/health:
+    get:
+      tags: [System]
+      summary: Health check
+      description: >
+        Returns service health status. Shallow mode (default) confirms
+        the process is alive. Deep mode checks database and auth connectivity.
+      operationId: healthCheck
+      security: []
+      parameters:
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [shallow, deep]
+            default: shallow
+      responses:
+        '200':
+          description: Healthy or degraded
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HealthCheck'
+        '503':
+          description: Unhealthy
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/HealthCheck'
+
+  # ── Rate Limiter Edge Function ────────────────────────────────────
+  /functions/v1/rate-limiter:
+    post:
+      tags: [System]
+      summary: Check rate limit
+      description: >
+        Checks whether a key (user ID, IP, or custom) is within its rate
+        limit. Returns remaining quota and reset time. Responds with 429
+        when the limit is exceeded.
+      operationId: checkRateLimit
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateLimitRequest'
+      responses:
+        '200':
+          description: Request allowed
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RateLimitResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'

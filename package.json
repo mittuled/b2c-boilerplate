@@ -1,0 +1,42 @@
+{
+  "name": "b2c-boilerplate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-platform B2C SaaS Boilerplate",
+  "packageManager": "pnpm@10.30.1",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean",
+    "generate": "plop --plopfile tools/generators/plopfile.js",
+    "doctor": "bash infra/scripts/doctor.sh",
+    "postinstall": "bash infra/scripts/doctor.sh || true",
+    "db:reset": "supabase db reset",
+    "db:seed": "bash infra/scripts/seed.sh",
+    "tokens:build": "pnpm --filter tokens build",
+    "contracts:generate": "bash contracts/scripts/generate-all.sh",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "plop": "^4.0.0",
+    "turbo": "^2.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "biome check --write"
+    ],
+    "*.{json,md}": [
+      "biome format --write"
+    ]
+  }
+}
